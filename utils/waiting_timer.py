@@ -29,4 +29,4 @@ class WaitingTimer:
 
 
 def start_timer(wait_ticks: int, end_fn, *args) -> WaitingTimer:
-    return WaitingTimer(end_fn, wait_ticks, args)
+    return WaitingTimer(end_fn, wait_ticks, *args)

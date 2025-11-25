@@ -1,11 +1,11 @@
-from config_params import PROBABILITY_OF_SENDING_PACKET, DIFS, N_NODES, DATA_MIN_SIZE, DATA_MAX_SIZE
+from config_params import PROBABILITY_OF_SENDING_PACKET, DIFS, N_NODES, DATA_MIN_SIZE, DATA_MAX_SIZE, NodeStatus, \
+    NodeStatType
 from enum import Enum
-import utils.waiting_timer
 from models.channel import Channel, ChannelStatus
 import logging
-import multiprocessing
 import random
 
+from models.node_stat import NodeStat
 from models.packet import Packet, PacketType
 from utils.waiting_timer import start_timer, WaitingTimer
 
@@ -13,13 +13,7 @@ _logger = logging.getLogger(__name__)
 
 
 
-class NodeStatus(Enum):
 
-    IDLE = 0
-    WAITING_DIFS_FOR_SENDING = 3
-    SENSE = 1
-    SENDING_PACKET = 2
-    WAIT_UNTIL_CHANNEL_IS_CLEAR = 4
 
 
 class Node:
@@ -28,15 +22,9 @@ class Node:
         self.node_id = node_id
         self.channel = channel
         self.status = NodeStatus.IDLE
-        self.t = 0 # t is timer
-        self.waiting_timer = None
+        self.stats = NodeStat(node_id)
+        self.waiting_timer: WaitingTimer | None = None
         self.data_packet_buff: Packet | None = None
-        self.process = None
-
-    def start(self):
-        self.process = multiprocessing.Process(target=self.tick, daemon=True)
-        self.process.start()
-        _logger.info("Started node " + str(self.node_id) + " at thread " + str(self.process.pid))
 
 
     def receive_packet(self, packet: Packet):
@@ -48,9 +36,7 @@ class Node:
         received_node = random.choice([x for x in range(0, N_NODES) if x != self.node_id])
         
         data_size = random.randint(DATA_MIN_SIZE, DATA_MAX_SIZE)
-        
-        _logger.info("Node " + str(self.node_id) + " generated data packet to node " + str(received_node))
-        
+
         return Packet(PacketType.DATA, self.node_id, received_node, data_size)
 
 
@@ -69,49 +55,44 @@ class Node:
 
     def wait_DIFS(self):
         self.status = NodeStatus.WAITING_DIFS_FOR_SENDING
-        self.waiting_timer = start_timer(DIFS, lambda params: params[0].waiting_DIFS_finished_trigger(), self)
+        self.waiting_timer = start_timer(DIFS, lambda node: node.waiting_DIFS_finished_trigger(), self)
 
     def waiting_DIFS_finished_trigger(self):
 
 
-        _logger.info("WAIT DIFS FINISHED FOR " + str(self.node_id))
         # Stop waiting
         self.waiting_timer = None
 
-        match self.channel.get_status():
+        match self.channel.status:
             case ChannelStatus.BUSY:
                 # Wait until medium is clear
                 self.status = NodeStatus.WAIT_UNTIL_CHANNEL_IS_CLEAR
-                _logger.info("Node " + str(self.node_id) + " is waiting until medium is clear")
             case ChannelStatus.CLEAR:
-                _logger.info("Node " + str(self.node_id) + " is sending data packet")
                 self.send_data()
 
 
 
     def tick(self):
-        while True:
 
+        # Tick timers
+        if self.waiting_timer:
+            self.waiting_timer.tick()
 
-            # Tick timers
-            if self.waiting_timer:
-                self.waiting_timer.tick()
+        match self.status:
+            case NodeStatus.IDLE:
+                if random.random() < PROBABILITY_OF_SENDING_PACKET:
 
-            match self.status:
-                case NodeStatus.IDLE:
-                    if random.random() < PROBABILITY_OF_SENDING_PACKET:
+                    # Ok we got the probability to transmit a packet
 
-                        # Ok we got the probability to transmit a packet
+                    match self.channel.status:
+                        case ChannelStatus.CLEAR:
+                            # If the medium is clear we wait a DIFS
+                            self.wait_DIFS()
+                        case ChannelStatus.BUSY:
+                            self.status = NodeStatus.WAIT_UNTIL_CHANNEL_IS_CLEAR
 
-                        match self.channel.get_status():
-                            case ChannelStatus.CLEAR:
-                                # If the medium is clear we wait a DIFS
-                                self.wait_DIFS()
-                            case ChannelStatus.BUSY:
-                                self.status = NodeStatus.WAIT_UNTIL_CHANNEL_IS_CLEAR
-
-                case NodeStatus.WAIT_UNTIL_CHANNEL_IS_CLEAR:
-                    if self.channel.get_status() == ChannelStatus.CLEAR:
-                        self.status = NodeStatus.IDLE
+            case NodeStatus.WAIT_UNTIL_CHANNEL_IS_CLEAR:
+                if self.channel.status == ChannelStatus.CLEAR:
+                    self.status = NodeStatus.IDLE
 
 

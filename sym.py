@@ -1,3 +1,5 @@
+import random
+
 from models.node import Node
 from models.channel import Channel
 from config_params import N_NODES, SIMULATION_TICKS
@@ -18,16 +20,22 @@ if __name__ == '__main__':
     for n in range(N_NODES):
         channel.nodes.append(Node(channel, n))
 
-    channel.start_all_nodes()
     _logger.info("Init all nodes")
 
-
     for t in range(SIMULATION_TICKS):
+
+        # We need to tick all nodes, we randomly do it
+
+        starting_node = random.randint(0, N_NODES-1)
+
+        for n in range(N_NODES):
+            channel.nodes[(n + starting_node) % N_NODES].tick()
+
+
         channel.tick()
+
 
     _logger.info("Simulation ended")
 
-    # Close all process
     for n in range(N_NODES):
-        channel.nodes[n].process.terminate()
-
+        channel.nodes[n].stats.print_stats()
