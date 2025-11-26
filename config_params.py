@@ -2,11 +2,13 @@ from enum import Enum
 
 N_NODES = 10
 SIMULATION_TICKS = 100000
-PROBABILITY_OF_SENDING_PACKET = 0.1
+PROBABILITY_OF_SENDING_PACKET = 0.01
 SIFS = 2  # 2 ticks
 DIFS = 2 * SIFS + 5
-DATA_MIN_SIZE = 10
-DATA_MAX_SIZE = 100
+DATA_MIN_SIZE = 100
+DATA_MAX_SIZE = 299
+
+CW_MIN = 31
 
 
 
@@ -14,11 +16,16 @@ DATA_MAX_SIZE = 100
 class NodeStatType(Enum):
     SENT_PACKET = 0
     RECEIVED_PACKET = 1
-
+    CW_ENTERS = 2
+    CW_INCREASE = 3
+    CW_TOTAL_WAITING_TICKS_TIME = 4
 
 DEFAULT_NODE_STATS = {
     NodeStatType.SENT_PACKET: 0,
-    NodeStatType.RECEIVED_PACKET: 0
+    NodeStatType.RECEIVED_PACKET: 0,
+    NodeStatType.CW_ENTERS: 0,
+    NodeStatType.CW_INCREASE: 0,
+    NodeStatType.CW_TOTAL_WAITING_TICKS_TIME: 0
 }
 
 class ChannelStatus(Enum):
@@ -29,6 +36,6 @@ class ChannelStatus(Enum):
 class NodeStatus(Enum):
     IDLE = 0
     WAITING_DIFS_FOR_SENDING = 3
-    SENSE = 1
     SENDING_PACKET = 2
     WAIT_UNTIL_CHANNEL_IS_CLEAR = 4
+    CONTENTION_WINDOW = 1

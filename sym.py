@@ -2,7 +2,7 @@ import random
 
 from models.node import Node
 from models.channel import Channel
-from config_params import N_NODES, SIMULATION_TICKS
+from config_params import N_NODES, SIMULATION_TICKS, NodeStatus
 import utils.waiting_timer
 import logging
 
@@ -32,7 +32,7 @@ if __name__ == '__main__':
             channel.nodes[(n + starting_node) % N_NODES].tick()
 
 
-        channel.tick()
+        channel.tick(t)
 
 
     _logger.info("Simulation ended")

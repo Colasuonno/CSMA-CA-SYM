@@ -1,4 +1,7 @@
 import logging
+import random
+
+from config_params import ChannelStatus, CW_MIN
 
 _logger = logging.getLogger(__name__)
 
@@ -30,3 +33,26 @@ class WaitingTimer:
 
 def start_timer(wait_ticks: int, end_fn, *args) -> WaitingTimer:
     return WaitingTimer(end_fn, wait_ticks, *args)
+
+
+
+class ContentionWindowTimer(WaitingTimer):
+
+
+    def __init__(self, cw_size: int, channel, end_fn, wait_ticks: int, *args):
+            super().__init__(end_fn, wait_ticks, *args)
+            self.channel = channel
+            self.cw_size = cw_size
+
+
+    def tick(self):
+        """
+        Decrease the timer only if the channel is idle
+        :return:
+        """
+
+        if self.channel.status == ChannelStatus.CLEAR:
+            super().tick()
+
+def start_cw_timer(channel, cw_size: int, end_fn, *args) -> WaitingTimer:
+    return ContentionWindowTimer(cw_size, channel, end_fn, random.randint(0, cw_size), *args)

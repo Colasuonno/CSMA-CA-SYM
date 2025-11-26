@@ -1,5 +1,5 @@
 from config_params import PROBABILITY_OF_SENDING_PACKET, DIFS, N_NODES, DATA_MIN_SIZE, DATA_MAX_SIZE, NodeStatus, \
-    NodeStatType
+    NodeStatType, CW_MIN
 from enum import Enum
 from models.channel import Channel, ChannelStatus
 import logging
@@ -7,7 +7,7 @@ import random
 
 from models.node_stat import NodeStat
 from models.packet import Packet, PacketType
-from utils.waiting_timer import start_timer, WaitingTimer
+from utils.waiting_timer import start_timer, WaitingTimer, ContentionWindowTimer, start_cw_timer
 
 _logger = logging.getLogger(__name__)
 
@@ -23,9 +23,9 @@ class Node:
         self.channel = channel
         self.status = NodeStatus.IDLE
         self.stats = NodeStat(node_id)
+        self.cw_timer: ContentionWindowTimer | None = None
         self.waiting_timer: WaitingTimer | None = None
         self.data_packet_buff: Packet | None = None
-
 
     def receive_packet(self, packet: Packet):
         _logger.info("Received packet from node " + str(packet.sender_address) +  " duration " + str(packet.duration))
@@ -40,15 +40,26 @@ class Node:
         return Packet(PacketType.DATA, self.node_id, received_node, data_size)
 
 
+    def on_collision(self):
+        match self.status:
+            case NodeStatus.WAITING_DIFS_FOR_SENDING:
+                self.enter_cw()
+                return
+            case NodeStatus.CONTENTION_WINDOW:
+                new_cw_size = self.cw_timer.cw_size *2
+                self.cw_timer = start_cw_timer(self.channel, new_cw_size, lambda node: node.send_data(), self)
+                self.stats.append_stat(NodeStatType.CW_INCREASE, 1)
+                return
+
+
     def build_rts(self) -> Packet:
         assert self.data_packet_buff is not None    
         return Packet(PacketType.RTS, self.node_id, self.data_packet_buff.receiver_address, self.data_packet_buff.data_size)
 
 
     def send_data(self):
-        self.status = NodeStatus.SENDING_PACKET
         self.data_packet_buff = self.build_data_packet()
-        self.channel.send(self.data_packet_buff)
+        self.channel.try_to_send(self.data_packet_buff)
 
     def request_to_send(self):
         self.data_packet_buff = self.build_data_packet()
@@ -70,13 +81,21 @@ class Node:
             case ChannelStatus.CLEAR:
                 self.send_data()
 
-
+    def enter_cw(self):
+        self.cw_timer = start_cw_timer(self.channel, CW_MIN, lambda node: node.send_data(), self)
+        self.status = NodeStatus.CONTENTION_WINDOW
+        self.stats.append_stat(NodeStatType.CW_ENTERS, 1)
 
     def tick(self):
 
         # Tick timers
         if self.waiting_timer:
             self.waiting_timer.tick()
+
+        if self.cw_timer:
+            if self.cw_timer.wait_ticks > 0:
+                self.stats.append_stat(NodeStatType.CW_TOTAL_WAITING_TICKS_TIME, 1)
+            self.cw_timer.tick()
 
         match self.status:
             case NodeStatus.IDLE:
@@ -90,9 +109,10 @@ class Node:
                             self.wait_DIFS()
                         case ChannelStatus.BUSY:
                             self.status = NodeStatus.WAIT_UNTIL_CHANNEL_IS_CLEAR
-
             case NodeStatus.WAIT_UNTIL_CHANNEL_IS_CLEAR:
                 if self.channel.status == ChannelStatus.CLEAR:
-                    self.status = NodeStatus.IDLE
+                    # Here we need to implement backoff
+                    self.enter_cw()
+
 
 
