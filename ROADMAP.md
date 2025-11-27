@@ -14,3 +14,11 @@
    6) -> Next frame
 7) If after the first waited IFS the medium is still clear
    8) -> Trasmit
+
+
+## ACK + Retrasmission
+ 
+1) Implemented ACK after receiving data (CRC) (After SIFS)
+2) Data retrasmission is ack is lost since there is no carrier sense after SIFS for ack sending
+
+
