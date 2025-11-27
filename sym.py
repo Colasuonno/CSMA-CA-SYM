@@ -29,7 +29,7 @@ if __name__ == '__main__':
         starting_node = random.randint(0, N_NODES-1)
 
         for n in range(N_NODES):
-            channel.nodes[(n + starting_node) % N_NODES].tick()
+            channel.nodes[(n + starting_node) % N_NODES].tick(t)
 
 
         channel.tick(t)
@@ -39,3 +39,5 @@ if __name__ == '__main__':
 
     for n in range(N_NODES):
         channel.nodes[n].stats.print_stats()
+
+    channel.stats.print_stats()

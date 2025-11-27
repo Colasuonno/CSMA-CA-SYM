@@ -10,8 +10,12 @@ class NodeStat:
         self.node_id = node_id
         self.stats = DEFAULT_NODE_STATS.copy()
 
-    def get_stat(self, stat_type: NodeStatType):
-        return self.stats[stat_type]
+    def evaluate_stat(self, stat_type: NodeStatType):
+        match stat_type:
+            case NodeStatType.PACKET_LOSS_PERCENTAGE:
+                return (self.stats[NodeStatType.GENERATED_PACKETS] - self.stats[NodeStatType.SENT_PACKET]) / self.stats[NodeStatType.GENERATED_PACKETS] if self.stats[NodeStatType.GENERATED_PACKETS] > 0 else 0
+            case _:
+                return self.stats[stat_type]
 
 
     def append_stat(self, stat_type: NodeStatType, value):
@@ -20,5 +24,5 @@ class NodeStat:
     def print_stats(self):
         _logger.info(f"=== Node {self.node_id} Statistics ===")
         for stat_type, value in self.stats.items():
-            _logger.info(f"{stat_type.name}: {value}")
+            _logger.info(f"{stat_type.name}: {self.evaluate_stat(stat_type):.2f}")
         _logger.info("=" * 40)
