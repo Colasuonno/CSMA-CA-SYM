@@ -2,6 +2,7 @@ from enum import Enum
 
 from mypy.dmypy_util import receive
 
+import config_params
 from config_params import ChannelStatus, NodeStatus, NodeStatType, ChannelStatType
 from models.channel_stat import ChannelStat
 from models.packet import PacketType
@@ -59,8 +60,9 @@ class Channel:
         receiver.stats.append_stat(NodeStatType.RECEIVED_PACKET, 1)
 
 
-        _logger.info("Success sent packet from " + str(sender.node_id) +" to " + str(receiver.node_id) + " with size of " + str(packet.data_size) + " started @ " + str(t))
-        receiver.receive_packet(t, packet)
+        _logger.info("Success sent packet from " + str(sender.node_id) +" to " + str(receiver.node_id) + " with size of " + str(packet.data_size) + " started @ " + str(t) + " - type: " + str(packet.packet_type))
+
+        [n.receive_packet(t, packet) for n in self.nodes if n.node_id != sender.node_id and n.status in config_params.waiting_packet_status()]
 
 
     def try_to_send(self, packet):
@@ -81,7 +83,7 @@ class Channel:
 
         sender.status = NodeStatus.SENDING_PACKET
 
-        if receiver.status != NodeStatus.WAITING_ACK:
+        if receiver.status not in config_params.waiting_packet_status():
             # It's actually still waiting a packet with waiting ack, so we don't modify the status
             receiver.status = NodeStatus.RECEIVING_PACKET
 

@@ -49,7 +49,7 @@ class Packet:
     def attach_crc(self):
         self.crc = self.calculate_crc()
 
-    def verify_crc(self) -> bool:
+    def verify_crc(self, verify_receiver: int) -> bool:
         if self.crc is None:
             return False
-        return self.calculate_crc() == self.crc
+        return self.calculate_crc() == self.crc and self.receiver_address == verify_receiver
