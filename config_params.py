@@ -1,8 +1,8 @@
 from enum import Enum
 
-N_NODES = 2
+N_NODES = 50
 SIMULATION_TICKS = 100000
-PROBABILITY_OF_SENDING_PACKET = 0.6
+PROBABILITY_OF_SENDING_PACKET = 0.01
 SIFS = 2  # 2 ticks
 DIFS = 2 * SIFS + 5
 DATA_MIN_SIZE = 100
@@ -16,6 +16,9 @@ class PacketStatus(Enum):
     GENERATED = 0
     SENT_RTS = 1
     SENT_DATA = 2
+
+
+
 
 class ChannelStatType(Enum):
 
@@ -62,7 +65,7 @@ class ChannelStatus(Enum):
 
 
 def waiting_packet_status():
-    return [NodeStatus.WAITING_DATA, NodeStatus.WAITING_ACK, NodeStatus.WAITING_CTS, NodeStatus.RECEIVING_PACKET]
+    return [NodeStatus.WAITING_DATA, NodeStatus.WAITING_ACK, NodeStatus.WAITING_CTS,NodeStatus.IDLE, NodeStatus.WAITING_UNTIL_CHANNEL_IS_CLEAR, NodeStatus.CONTENTION_WINDOW]
 
 class NodeStatus(Enum):
 
@@ -77,7 +80,6 @@ class NodeStatus(Enum):
     WAITING_CTS = 5
     WAITING_ACK = 6
     WAITING_DATA = 7
-    RECEIVING_PACKET = 9
 
 
 

@@ -24,6 +24,7 @@ class Node:
         self.status = NodeStatus.IDLE
         self.stats = NodeStat(node_id)
         self.data_packet_status: PacketStatus | None = None
+        self.current_connection_handshake_source: None | int = None
         self.cw_timer: ContentionWindowTimer | None = None
         self.waiting_timer: WaitingTimer | None = None
         self.data_packet_buff: Packet | None = None
@@ -37,6 +38,28 @@ class Node:
         self.waiting_timer = None
         self.data_packet_buff = None
         self.ack_packet_buff = None
+        self.data_packet_status = None
+        self.current_connection_handshake_source = None
+
+    def should_skip_packet(self, packet: Packet):
+        """
+        This function is used to reserve the channel for a particular source
+
+        - TODO: Remove thisi function and implement the NAV+don't send RTS to listening nodes
+
+
+        This function checks if the packet is a RTS and if we are already waiting a CTS,DATA,ACK From another source
+        in this case skip packet
+
+        :param packet:
+        :return:
+        """
+        match self.status:
+            case NodeStatus.WAITING_CTS,NodeStatus.WAITING_DATA,NodeStatus.WAITING_ACK:
+                return packet.sender_address != self.current_connection_handshake_source
+            case _:
+                return False
+
 
 
     def receive_packet(self, t: int, packet: Packet):
@@ -44,8 +67,12 @@ class Node:
         if not packet.verify_crc(self.node_id):
             return
 
+        if self.should_skip_packet(packet):
+            _logger.error("Skipping packet from " + str(packet.sender_address) + " to " + str(packet.receiver_address) + " type " + str(packet.packet_type))
+            return
+
         # Check if we are receiving ack
-        _logger.info(str(self.node_id) + " with status " + str(self.status) +  " Received packet from node " + str(packet.sender_address) +  " type " + str(packet.packet_type))
+        _logger.info( "@ " + str(t) + "  " + str(self.node_id) + " with status " + str(self.status) +  " Received packet from node " + str(packet.sender_address) +  " type " + str(packet.packet_type))
 
         sender = self.channel.nodes[packet.sender_address]
 
@@ -55,6 +82,7 @@ class Node:
                     _logger.info("Verified CRC for packet from " + str(packet.sender_address) + " to " + str(
                         packet.receiver_address) + " CRC=" + str(packet.crc))
                     self.reset_node_state()
+                    sender.reset_node_state()
                 else:
                     _logger.error("Received an ACK from " + str(packet.sender_address) + " when not waiting for ACK")
             case PacketType.DATA:
@@ -64,6 +92,7 @@ class Node:
                     # This is unsure so we can actually lose the ACK packet
                     self.ack_packet_buff = self.build_ack_packet(packet)
                     self.status = NodeStatus.SENDING_PACKET
+                    sender.data_packet_status = PacketStatus.SENT_DATA
                     self.waiting_timer = start_timer(SIFS, lambda node: node.send_ack(t), self)
 
                     sender.status = NodeStatus.WAITING_ACK
@@ -76,8 +105,14 @@ class Node:
                 # RTS Received, we need to send CTS after sifs
                 # Don't carrier sense after SIFS and send directly CTS
 
+                # Actualyly it's possibile that we are still in cw, so reset it sts
+                self.cw_timer = None
+                self.waiting_timer = None
+
                 sender.data_packet_status = PacketStatus.SENT_RTS
                 sender.status = NodeStatus.WAITING_CTS
+                sender.current_connection_handshake_source = self.node_id
+                self.current_connection_handshake_source = sender.node_id
                 self.cts_packet_buff = self.build_cts_packet(packet)
                 self.status = NodeStatus.SENDING_PACKET
                 self.waiting_timer = start_timer(SIFS, lambda node: node.send_cts(t), self)
@@ -87,23 +122,18 @@ class Node:
 
                 if self.status == NodeStatus.WAITING_CTS:
                     # Data buff is alreadyy generated @ this point so
-                    self.status = NodeStatus.WAITING_DATA
-                    sender.status = NodeStatus.SENDING_PACKET
+                    sender.status = NodeStatus.WAITING_DATA
+                    sender.cts_packet_buff = None
+                    self.status = NodeStatus.SENDING_PACKET
                     self.waiting_timer = start_timer(SIFS, lambda node: node.send_data(), self)
                 else:
                     _logger.error("Got CTS But not expecting it.....")
 
 
 
-
-
-
-
-
-
-
     def retransmit_data(self):
         _logger.info("Retransmitting data packet for ack lost from " + str(self.node_id) +" to " + str(self.data_packet_buff.receiver_address))
+        self.data_packet_status = PacketStatus.SENT_RTS # since we need to retrasmit data
         self.stats.append_stat(NodeStatType.RETRANSMITTED_PACKET_AFTER_ACK_LOST, 1)
         self.wait_channel_clear_and_send()
 
@@ -111,12 +141,17 @@ class Node:
         if not self.data_packet_buff:
             raise Exception("No data packet buff found for RTS")
 
+        self.stats.append_stat(NodeStatType.GENERATED_PACKETS, 1)
+
         rts = Packet(PacketType.RTS, self.node_id, self.data_packet_buff.receiver_address, DATA_MIN_SIZE // 4)
         rts.attach_crc()
 
         return rts
 
     def build_cts_packet(self, rts_packet: Packet) -> Packet:
+
+        self.stats.append_stat(NodeStatType.GENERATED_PACKETS, 1)
+
         cts = Packet(PacketType.CTS, self.node_id, rts_packet.sender_address, DATA_MIN_SIZE // 4)
         cts.attach_crc()
 
@@ -143,8 +178,10 @@ class Node:
 
         self.data_packet_status = PacketStatus.GENERATED
 
-        return Packet(PacketType.DATA, self.node_id, received_node, data_size)
+        pkt =  Packet(PacketType.DATA, self.node_id, received_node, data_size)
+        pkt.attach_crc()
 
+        return pkt
 
     def on_collision(self, packet: Packet):
         match self.status:
@@ -159,20 +196,26 @@ class Node:
     def send_data(self):
 
         # Based on the node status we need to send different packets
-
         packet_buff = None
 
         match self.data_packet_status:
             case PacketStatus.GENERATED:
                 # We generated the packet but didn't send RTS, so we need to send RTS
                 packet_buff = self.build_rts_packet()
-            case PacketStatus.SENT_RTS:
+            case _:
                 # We are here since we received CTS and we are ready to send
                 packet_buff = self.data_packet_buff
-            case PacketStatus.SENT_DATA:
-                raise Exception("Already sent and acknlowdged packet, wtf am i called for???")
+
+        if packet_buff is None and self.cts_packet_buff:
+            _logger.debug("AO CTS BUFFD" + str(self.cts_packet_buff) + " " + str(self.node_id))
+            packet_buff = self.cts_packet_buff
+            self.waiting_timer = None
+
+        if packet_buff is None:
+            raise Exception("No packet buff found " + str(self.data_packet_status) +" - " + str(self.status) +" - " + str(self.node_id) + " - " + str(self.cts_packet_buff))
 
         self.channel.try_to_send(packet_buff)
+
 
     def wait_DIFS_and_send(self):
         self.status = NodeStatus.WAITING_DIFS
@@ -201,9 +244,7 @@ class Node:
         if not self.cts_packet_buff:
             raise Exception("No cts packet buff found")
 
-
-        self.channel.send(t, self.cts_packet_buff)
-        self.cts_packet_buff = None
+        self.channel.try_to_send(self.cts_packet_buff)
         self.waiting_timer = None
 
     def send_ack(self, t: int):

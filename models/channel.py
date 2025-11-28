@@ -60,7 +60,7 @@ class Channel:
         receiver.stats.append_stat(NodeStatType.RECEIVED_PACKET, 1)
 
 
-        _logger.info("Success sent packet from " + str(sender.node_id) +" to " + str(receiver.node_id) + " with size of " + str(packet.data_size) + " started @ " + str(t) + " - type: " + str(packet.packet_type))
+        _logger.info("Success sent packet from " + str(sender.node_id) +" to " + str(receiver.node_id) + " with size of " + str(packet.data_size) + " started @ " + str(t) + " - type: " + str(packet.packet_type) +" - receiving nodes are: " + str([str(n.node_id) + " - " + str(n.status) for n in self.nodes if n.node_id != sender.node_id]))
 
         [n.receive_packet(t, packet) for n in self.nodes if n.node_id != sender.node_id and n.status in config_params.waiting_packet_status()]
 
@@ -82,10 +82,6 @@ class Channel:
         receiver = self.nodes[packet.receiver_address]
 
         sender.status = NodeStatus.SENDING_PACKET
-
-        if receiver.status not in config_params.waiting_packet_status():
-            # It's actually still waiting a packet with waiting ack, so we don't modify the status
-            receiver.status = NodeStatus.RECEIVING_PACKET
 
         self.waiting_timer = start_timer(packet.data_size, lambda channel, pkt: channel.end_success_packet_delivery(t,
             pkt
