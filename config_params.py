@@ -4,7 +4,7 @@ N_NODES = 50
 SIMULATION_TICKS = 100000
 PROBABILITY_OF_SENDING_PACKET = 0.01
 SIFS = 2  # 2 ticks
-DIFS = 2 * SIFS + 5
+DIFS = 5 * SIFS + 5
 DATA_MIN_SIZE = 100
 DATA_MAX_SIZE = 299
 ACK_MAX_WAIT_TIME = DATA_MIN_SIZE
@@ -15,7 +15,11 @@ CW_MIN = 31
 class PacketStatus(Enum):
     GENERATED = 0
     SENT_RTS = 1
-    SENT_DATA = 2
+    RECEIVED_RTS = 2
+    SENT_CTS = 3
+    RECEIVED_CTS = 4
+    SENT_DATA = 5
+    RECEIVED_DATA = 6
 
 
 
@@ -65,7 +69,7 @@ class ChannelStatus(Enum):
 
 
 def waiting_packet_status():
-    return [NodeStatus.WAITING_DATA, NodeStatus.WAITING_ACK, NodeStatus.WAITING_CTS,NodeStatus.IDLE, NodeStatus.WAITING_UNTIL_CHANNEL_IS_CLEAR, NodeStatus.CONTENTION_WINDOW]
+    return [NodeStatus.WAITING_DATA, NodeStatus.WAITING_ACK, NodeStatus.WAITING_CTS,NodeStatus.IDLE, NodeStatus.WAITING_UNTIL_CHANNEL_IS_CLEAR]
 
 class NodeStatus(Enum):
 
@@ -75,8 +79,7 @@ class NodeStatus(Enum):
     IDLE = 0
     WAITING_DIFS = 2
     WAITING_UNTIL_CHANNEL_IS_CLEAR = 1
-    CONTENTION_WINDOW = 3
-    SENDING_PACKET = 4
+    SENDING_ACK = 4
     WAITING_CTS = 5
     WAITING_ACK = 6
     WAITING_DATA = 7

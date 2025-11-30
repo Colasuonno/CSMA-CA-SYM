@@ -25,6 +25,7 @@ class Node:
         self.stats = NodeStat(node_id)
         self.data_packet_status: PacketStatus | None = None
         self.current_connection_handshake_source: None | int = None
+        self.inside_cw: bool = False
         self.cw_timer: ContentionWindowTimer | None = None
         self.waiting_timer: WaitingTimer | None = None
         self.data_packet_buff: Packet | None = None
@@ -36,6 +37,7 @@ class Node:
         self.status = NodeStatus.IDLE
         self.cw_timer = None
         self.waiting_timer = None
+        self.inside_cw = False
         self.data_packet_buff = None
         self.ack_packet_buff = None
         self.data_packet_status = None
@@ -55,7 +57,7 @@ class Node:
         :return:
         """
         match self.status:
-            case NodeStatus.WAITING_CTS,NodeStatus.WAITING_DATA,NodeStatus.WAITING_ACK:
+            case NodeStatus.WAITING_CTS | NodeStatus.WAITING_DATA | NodeStatus.WAITING_ACK:
                 return packet.sender_address != self.current_connection_handshake_source
             case _:
                 return False
@@ -90,11 +92,18 @@ class Node:
                 if self.status == NodeStatus.WAITING_DATA:
                     # We need to send packet without sensing the channel with the ACK
                     # This is unsure so we can actually lose the ACK packet
+
+
+                    # Receiver
+                    self.data_packet_status = PacketStatus.RECEIVED_DATA
                     self.ack_packet_buff = self.build_ack_packet(packet)
-                    self.status = NodeStatus.SENDING_PACKET
-                    sender.data_packet_status = PacketStatus.SENT_DATA
+                    self.status = NodeStatus.SENDING_ACK
+
                     self.waiting_timer = start_timer(SIFS, lambda node: node.send_ack(t), self)
 
+                    # Sender
+
+                    sender.data_packet_status = PacketStatus.SENT_DATA
                     sender.status = NodeStatus.WAITING_ACK
                     # This timer will be deleted with Node#reset_node_state() if packet is ack is received and validated by CRC
                     sender.waiting_timer = start_timer(ACK_MAX_WAIT_TIME, lambda node: node.retransmit_data(), sender)
@@ -106,15 +115,25 @@ class Node:
                 # Don't carrier sense after SIFS and send directly CTS
 
                 # Actualyly it's possibile that we are still in cw, so reset it sts
+                self.inside_cw = False
                 self.cw_timer = None
                 self.waiting_timer = None
+
+
+                # Sender
 
                 sender.data_packet_status = PacketStatus.SENT_RTS
                 sender.status = NodeStatus.WAITING_CTS
                 sender.current_connection_handshake_source = self.node_id
+
+
+
+                # Receiver
+
+                self.data_packet_status = PacketStatus.RECEIVED_RTS
                 self.current_connection_handshake_source = sender.node_id
                 self.cts_packet_buff = self.build_cts_packet(packet)
-                self.status = NodeStatus.SENDING_PACKET
+                self.status = NodeStatus.WAITING_DATA
                 self.waiting_timer = start_timer(SIFS, lambda node: node.send_cts(t), self)
 
 
@@ -122,9 +141,18 @@ class Node:
 
                 if self.status == NodeStatus.WAITING_CTS:
                     # Data buff is alreadyy generated @ this point so
+
+                    # Sender
+
+                    sender.data_packet_status = PacketStatus.SENT_CTS
                     sender.status = NodeStatus.WAITING_DATA
                     sender.cts_packet_buff = None
-                    self.status = NodeStatus.SENDING_PACKET
+
+
+                    # Receiver
+
+                    self.data_packet_status = PacketStatus.RECEIVED_CTS
+                    self.status = NodeStatus.WAITING_ACK
                     self.waiting_timer = start_timer(SIFS, lambda node: node.send_data(), self)
                 else:
                     _logger.error("Got CTS But not expecting it.....")
@@ -133,7 +161,7 @@ class Node:
 
     def retransmit_data(self):
         _logger.info("Retransmitting data packet for ack lost from " + str(self.node_id) +" to " + str(self.data_packet_buff.receiver_address))
-        self.data_packet_status = PacketStatus.SENT_RTS # since we need to retrasmit data
+        self.data_packet_status = PacketStatus.RECEIVED_CTS # since we need to retrasmit data
         self.stats.append_stat(NodeStatType.RETRANSMITTED_PACKET_AFTER_ACK_LOST, 1)
         self.wait_channel_clear_and_send()
 
@@ -184,21 +212,45 @@ class Node:
         return pkt
 
     def on_collision(self, packet: Packet):
-        match self.status:
-            case NodeStatus.CONTENTION_WINDOW:
-                new_cw_size = self.cw_timer.cw_size *2
-                self.cw_timer = start_cw_timer(self.channel, new_cw_size, lambda node: node.send_data(), self)
-                self.stats.append_stat(NodeStatType.CW_INCREASE, 1)
-            case _:
-                self.enter_cw()
-                return
+
+        if self.inside_cw:
+            new_cw_size = self.cw_timer.cw_size * 2
+            self.cw_timer = start_cw_timer(self.channel, new_cw_size, lambda node: node.send_data(), self)
+            self.stats.append_stat(NodeStatType.CW_INCREASE, 1)
+        else:
+            self.enter_cw()
+
 
     def send_data(self):
+
+        # We ended cw
+        self.inside_cw = False
+        self.cw_timer = None
 
         # Based on the node status we need to send different packets
         packet_buff = None
 
+
+        #_logger.info("Should send packet from node " + str(self.node_id) + " with status " + str(self.status) + " and packet status " + str(self.data_packet_status))
+
         match self.data_packet_status:
+            case PacketStatus.GENERATED:
+                packet_buff = self.build_rts_packet()
+            case PacketStatus.RECEIVED_RTS:
+                # It means CTS was lost/in cw so we need to resent it
+                if not self.cts_packet_buff:
+                    raise Exception("No cts packet buff found  " + str(self.node_id))
+                packet_buff = self.cts_packet_buff
+            case PacketStatus.RECEIVED_CTS:
+                packet_buff = self.data_packet_buff
+            case PacketStatus.SENT_DATA:
+
+                if not self.ack_packet_buff:
+                    raise Exception("No ack packet buff found " + str(self.node_id))
+                packet_buff = self.ack_packet_buff
+
+        """
+          match self.data_packet_status:
             case PacketStatus.GENERATED:
                 # We generated the packet but didn't send RTS, so we need to send RTS
                 packet_buff = self.build_rts_packet()
@@ -206,13 +258,11 @@ class Node:
                 # We are here since we received CTS and we are ready to send
                 packet_buff = self.data_packet_buff
 
-        if packet_buff is None and self.cts_packet_buff:
-            _logger.debug("AO CTS BUFFD" + str(self.cts_packet_buff) + " " + str(self.node_id))
-            packet_buff = self.cts_packet_buff
-            self.waiting_timer = None
-
         if packet_buff is None:
             raise Exception("No packet buff found " + str(self.data_packet_status) +" - " + str(self.status) +" - " + str(self.node_id) + " - " + str(self.cts_packet_buff))
+
+        """
+
 
         self.channel.try_to_send(packet_buff)
 
@@ -232,11 +282,11 @@ class Node:
                 # Wait until medium is clear
                 self.status = NodeStatus.WAITING_UNTIL_CHANNEL_IS_CLEAR
             case ChannelStatus.CLEAR:
-                self.send_data()
+                self.enter_cw()
 
     def enter_cw(self):
         self.cw_timer = start_cw_timer(self.channel, CW_MIN, lambda node: node.send_data(), self)
-        self.status = NodeStatus.CONTENTION_WINDOW
+        self.inside_cw = True
         self.stats.append_stat(NodeStatType.CW_ENTERS, 1)
 
     def send_cts(self, t: int):
@@ -252,10 +302,8 @@ class Node:
         if not self.ack_packet_buff:
             raise Exception("No ack packet buff found")
 
-
         self.channel.send(t, self.ack_packet_buff)
         self.ack_packet_buff = None
-        self.waiting_timer = None
 
     def tick(self, t: int):
 

@@ -50,8 +50,8 @@ class Channel:
         sender= self.nodes[packet.sender_address]
         receiver = self.nodes[packet.receiver_address]
 
+        sender.inside_cw = False
         sender.cw_timer = None
-        sender.waiting_timer = None
 
         # Channel is now free
         self.status = ChannelStatus.CLEAR
@@ -60,7 +60,7 @@ class Channel:
         receiver.stats.append_stat(NodeStatType.RECEIVED_PACKET, 1)
 
 
-        _logger.info("Success sent packet from " + str(sender.node_id) +" to " + str(receiver.node_id) + " with size of " + str(packet.data_size) + " started @ " + str(t) + " - type: " + str(packet.packet_type) +" - receiving nodes are: " + str([str(n.node_id) + " - " + str(n.status) for n in self.nodes if n.node_id != sender.node_id]))
+        _logger.info("Success sent packet from " + str(sender.node_id) +" to " + str(receiver.node_id) + " with size of " + str(packet.data_size) + " started @ " + str(t) + " - type: " + str(packet.packet_type) +" - receiving nodes are: " + str([str(n.node_id) + " - " + str(n.status) + " - " + str(n.data_packet_status) for n in self.nodes if n.node_id != sender.node_id]))
 
         [n.receive_packet(t, packet) for n in self.nodes if n.node_id != sender.node_id and n.status in config_params.waiting_packet_status()]
 
@@ -69,19 +69,20 @@ class Channel:
         self.current_tick_tosend_packets.append(packet)
 
     def send(self, t: int, packet):
+
+        sender = self.nodes[packet.sender_address]
+        receiver = self.nodes[packet.receiver_address]
+
         if self.status == ChannelStatus.BUSY:
 
             # If channel is busy we actually lost the packet !!!!!!
+            sender.reset_node_state()
+            receiver.reset_node_state()
             _logger.info("@ " + str(t) + " Packet lost from " + str(packet.sender_address) + " to " + str(packet.receiver_address) + " type: " + str(packet.packet_type))
             return
 
 
         self.status = ChannelStatus.BUSY
-
-        sender = self.nodes[packet.sender_address]
-        receiver = self.nodes[packet.receiver_address]
-
-        sender.status = NodeStatus.SENDING_PACKET
 
         self.waiting_timer = start_timer(packet.data_size, lambda channel, pkt: channel.end_success_packet_delivery(t,
             pkt
