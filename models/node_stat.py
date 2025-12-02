@@ -12,8 +12,6 @@ class NodeStat:
 
     def evaluate_stat(self, stat_type: NodeStatType):
         match stat_type:
-            case NodeStatType.PACKET_LOSS_PERCENTAGE:
-                return (self.stats[NodeStatType.GENERATED_PACKETS] - self.stats[NodeStatType.SENT_PACKET]) / self.stats[NodeStatType.GENERATED_PACKETS] if self.stats[NodeStatType.GENERATED_PACKETS] > 0 else 0
             case _:
                 return self.stats[stat_type]
 

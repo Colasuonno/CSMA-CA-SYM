@@ -70,7 +70,7 @@ class Node:
             return
 
         if self.should_skip_packet(packet):
-            _logger.error("Skipping packet from " + str(packet.sender_address) + " to " + str(packet.receiver_address) + " type " + str(packet.packet_type))
+            _logger.error("Skipping packet from " + str(packet.sender_address) + " to " + str(packet.receiver_address) + " type " + str(packet.packet_type) + " - current node status: " + str(self.status) + " handshake expected: "  + str(self.current_connection_handshake_source))
             return
 
         # Check if we are receiving ack
@@ -85,6 +85,7 @@ class Node:
                         packet.receiver_address) + " CRC=" + str(packet.crc))
                     self.reset_node_state()
                     sender.reset_node_state()
+                    sender.stats.append_stat(NodeStatType.COMPLETED_JOURNEY_PACKETS, 1)
                 else:
                     _logger.error("Received an ACK from " + str(packet.sender_address) + " when not waiting for ACK")
             case PacketType.DATA:

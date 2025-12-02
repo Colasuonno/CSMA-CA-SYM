@@ -1,7 +1,7 @@
 import random
 
-from models.node import Node
-from models.channel import Channel
+from models.v2.node2 import Node2
+from models.v2.channel2 import Channel2
 from config_params import N_NODES, SIMULATION_TICKS, NodeStatus
 import utils.waiting_timer
 import logging
@@ -15,10 +15,10 @@ logging.getLogger().setLevel(logging.DEBUG)
 
 if __name__ == '__main__':
 
-    channel = Channel()
+    channel = Channel2()
 
     for n in range(N_NODES):
-        channel.nodes.append(Node(channel, n))
+        channel.nodes.append(Node2(n, channel))
 
     _logger.info("Init all nodes")
 
@@ -40,4 +40,4 @@ if __name__ == '__main__':
     for n in range(N_NODES):
         channel.nodes[n].stats.print_stats()
 
-    channel.stats.print_stats()
+    #channel.stats.print_stats()

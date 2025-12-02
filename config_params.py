@@ -1,15 +1,16 @@
 from enum import Enum
+from unittest import case
 
-N_NODES = 50
+N_NODES = 2
 SIMULATION_TICKS = 100000
-PROBABILITY_OF_SENDING_PACKET = 0.01
+PROBABILITY_OF_SENDING_PACKET = 0.9
 SIFS = 2  # 2 ticks
 DIFS = 5 * SIFS + 5
-DATA_MIN_SIZE = 100
-DATA_MAX_SIZE = 299
+DATA_MIN_SIZE = 20
+DATA_MAX_SIZE = 100
 ACK_MAX_WAIT_TIME = DATA_MIN_SIZE
 
-CW_MIN = 31
+CW_MIN = 3
 
 
 class PacketStatus(Enum):
@@ -34,14 +35,19 @@ class ChannelStatType(Enum):
     TOTAL_NODES = 4
 
 class NodeStatType(Enum):
-    SENT_PACKET = 0
-    RECEIVED_PACKET = 1
-    CW_ENTERS = 2
-    CW_INCREASE = 3
-    CW_TOTAL_WAITING_TICKS_TIME = 4
-    GENERATED_PACKETS = 5
-    PACKET_LOSS_PERCENTAGE = 6
-    RETRANSMITTED_PACKET_AFTER_ACK_LOST = 7
+    CONTROL_PACKET_SENT = 1
+    CONTROL_PACKET_LOSS = 2
+    CONTROL_PACKET_GENERATED = 10
+    DATA_PACKET_GENERATED = 9
+    DATA_PACKET_SENT = 0
+    DATA_PACKET_LOSS = 3
+    TOTAL_PACKET_GENERATED = 11
+    TOTAL_PACKET_SENT = 6
+    TOTAL_PACKET_LOSS = 4
+    PACKET_LOSS_PERCENTAGE = 5
+    CW_ENTERS = 7
+    CW_INCREASE = 8
+
 
 DEFAULT_CHANNEL_STATS = {
     ChannelStatType.TOTAL_GENERATED_PACKETS: 0,
@@ -53,14 +59,18 @@ DEFAULT_CHANNEL_STATS = {
 }
 
 DEFAULT_NODE_STATS = {
+    NodeStatType.CONTROL_PACKET_SENT: 0,
+    NodeStatType.CONTROL_PACKET_LOSS: 0,
+    NodeStatType.CONTROL_PACKET_GENERATED: 0,
+    NodeStatType.DATA_PACKET_GENERATED: 0,
+    NodeStatType.TOTAL_PACKET_GENERATED: 0,
+    NodeStatType.DATA_PACKET_SENT: 0,
+    NodeStatType.DATA_PACKET_LOSS: 0,
+    NodeStatType.TOTAL_PACKET_SENT: 0,
+    NodeStatType.TOTAL_PACKET_LOSS: 0,
     NodeStatType.PACKET_LOSS_PERCENTAGE: 0,
-    NodeStatType.GENERATED_PACKETS: 0,
-    NodeStatType.SENT_PACKET: 0,
-    NodeStatType.RECEIVED_PACKET: 0,
     NodeStatType.CW_ENTERS: 0,
-    NodeStatType.RETRANSMITTED_PACKET_AFTER_ACK_LOST: 0,
-    NodeStatType.CW_INCREASE: 0,
-    NodeStatType.CW_TOTAL_WAITING_TICKS_TIME: 0
+    NodeStatType.CW_INCREASE: 0
 }
 
 class ChannelStatus(Enum):
@@ -77,12 +87,31 @@ class NodeStatus(Enum):
 
 
     IDLE = 0
-    WAITING_DIFS = 2
     WAITING_UNTIL_CHANNEL_IS_CLEAR = 1
-    SENDING_ACK = 4
-    WAITING_CTS = 5
-    WAITING_ACK = 6
-    WAITING_DATA = 7
+    # WAITING RTS = IDLE
+    SENDING_RTS = 2
+    SENDING_CTS = 3
+    WAITING_CTS = 4
+    SENDING_DATA = 5
+    WAITING_DATA = 6
+    SENDING_ACK = 7
+    WAITING_ACK = 8
+    TIMEOUT = 9
+    END_BACKOFF_TIMEOUT = 10
+
+    def can_start_new_connections(self):
+        match self:
+            case NodeStatus.IDLE | NodeStatus.SENDING_RTS | NodeStatus.WAITING_UNTIL_CHANNEL_IS_CLEAR:
+                return True
+            case _:
+                return False
+
+    def can_receive_packet(self):
+        match self:
+            case NodeStatus.IDLE | NodeStatus.SENDING_RTS | NodeStatus.WAITING_UNTIL_CHANNEL_IS_CLEAR | NodeStatus.WAITING_ACK | NodeStatus.WAITING_DATA | NodeStatus.WAITING_CTS:
+                return True
+            case _:
+                return False
 
 
 
