@@ -1,7 +1,8 @@
+import math
 import random
 
 from config_params import NodeStatus, PROBABILITY_OF_SENDING_PACKET, DIFS, ChannelStatus, NodeStatType, N_NODES, \
-    DATA_MIN_SIZE, DATA_MAX_SIZE, PacketStatus, CW_MIN, SIFS
+    DATA_MIN_SIZE, DATA_MAX_SIZE, PacketStatus, CW_MIN, SIFS, MIN_X, MAX_Y, MAX_X, MIN_Y
 from models.node_stat import NodeStat
 from models.packet import Packet, PacketType
 from utils.timers import NodeTimer, NodeTimerType
@@ -17,6 +18,8 @@ class Node2:
         self.node_id = node_id
         self.channel = channel
         self.nav_seconds = 0
+        self.x = random.randint(MIN_X, MAX_X)
+        self.y = random.randint(MIN_Y, MAX_Y)
         self.timeout_seconds: int | None = None
         self.stats = NodeStat(node_id)
         self.status = NodeStatus.IDLE
@@ -26,9 +29,9 @@ class Node2:
         # This is the packet buff generated before sending the RTS
         self.data_packet_buff: Packet | None = None
 
-    def send_packet_from_timer(self):
+    def send_packet_from_timer(self, t):
         self.timeout_seconds = self.timer.packet.timeout
-        self.channel.send_packet(self.timer.packet)
+        self.channel.send_packet(t, self.timer.packet)
 
         match self.timer.packet.packet_type:
             case PacketType.DATA:
@@ -37,6 +40,9 @@ class Node2:
                 self.stats.append_stat(NodeStatType.CONTROL_PACKET_GENERATED, 1)
 
 
+    def distance(self, node):
+        """Simple euclidean distance between two nodes"""
+        return math.sqrt( (self.x - node.x)**2 + (self.y - node.y)**2 )
 
     def reset_timer(self):
         self.timer = None
@@ -54,6 +60,7 @@ class Node2:
 
         if self.timeout_seconds is not None and self.timeout_seconds == 0:
             _logger.info("@ " + str(t) + " " + str(self.node_id) + " Timeout reached, we just re-try RTS entering cw")
+            self.stats.append_stat(NodeStatType.TIMEOUT_RETRY, 1)
             self.status = NodeStatus.TIMEOUT
             self.enter_cw()
             self.timeout_seconds = None
@@ -84,7 +91,7 @@ class Node2:
                         case _:
                             raise Exception("Invalid timer status " + str(self.status))
 
-                    self.send_packet_from_timer()
+                    self.send_packet_from_timer(t)
                     self.reset_timer()
                 case NodeTimerType.NORMAL_WAIT:
 
@@ -96,15 +103,15 @@ class Node2:
                             self.enter_cw()
                         case NodeStatus.SENDING_CTS:
                             self.status = NodeStatus.WAITING_DATA
-                            self.send_packet_from_timer()
+                            self.send_packet_from_timer(t)
                             self.reset_timer()
                         case NodeStatus.SENDING_DATA:
                             self.status = NodeStatus.WAITING_ACK
-                            self.send_packet_from_timer()
+                            self.send_packet_from_timer(t)
                             self.reset_timer()
                         case NodeStatus.SENDING_ACK:
                             self.status = NodeStatus.IDLE
-                            self.send_packet_from_timer()
+                            self.send_packet_from_timer(t)
                             self.reset_timer()
                             self.reset_timeout()
                         case _:
@@ -134,9 +141,12 @@ class Node2:
                 if random.random() < PROBABILITY_OF_SENDING_PACKET:
                     # Ok we need to send a packet
 
-                    _logger.info("@ " + str(t) + " " + str(self.node_id) + " Sending packet")
-
                     self.data_packet_buff = self.build_data_packet()
+
+                    if self.data_packet_buff is None:
+
+                        # No nearby node found... skipping ?
+                        return
 
                     if self.channel_busy():
                         self.status = NodeStatus.WAITING_UNTIL_CHANNEL_IS_CLEAR
@@ -153,13 +163,26 @@ class Node2:
                 if self.channel_busy():
                     self.status = NodeStatus.WAITING_UNTIL_CHANNEL_IS_CLEAR
                 else:
+
+                    # Ok here there is something to explain
+                    # If the node hasn't nearby packets (too far for example)
+                    # the data packet buff is none, so we can't send any RTS
+                    # TODO: Implement something to modify range idk???
+                    # For now I just check either the buff is none
+                    # and then put the node in idle
+                    if not self.data_packet_buff:
+                        self.status = NodeStatus.IDLE
+                        self.reset_timer()
+                        self.reset_timeout()
+                        return
+
                     self.status = NodeStatus.SENDING_RTS
                     self.timer = NodeTimer(NodeTimerType.NORMAL_WAIT, DIFS)
 
 
     def channel_busy(self):
         # Both physical and virtual carrier sensing
-        return self.channel.status == ChannelStatus.BUSY #or self.nav_seconds > 0
+        return self.channel.status == ChannelStatus.BUSY or self.nav_seconds > 0
 
 
 
@@ -169,7 +192,7 @@ class Node2:
     def should_skip_packet(self, packet):
         if self.node_id != packet.receiver_address:
             # Update nav timer
-            self.nav_seconds = packet.duration
+            self.nav_seconds = packet.data_size
             return True
         return False
 
@@ -235,10 +258,15 @@ class Node2:
 
 
 
-    def build_data_packet(self) -> Packet:
+    def build_data_packet(self) -> None | Packet:
+
+        available_nodes = self.channel.get_nodes_from_pos(self)
+
+        if len(available_nodes) == 0:
+            return None
 
         # Let's pick a random node
-        received_node = random.choice([x for x in range(0, N_NODES) if x != self.node_id])
+        received_node = random.choice([n.node_id for n in available_nodes])
 
         data_size = random.randint(DATA_MIN_SIZE, DATA_MAX_SIZE)
 
@@ -263,7 +291,7 @@ class Node2:
 
     def build_rts_packet(self) -> Packet:
         if not self.data_packet_buff:
-            raise Exception("No data packet buff found for RTS")
+            raise Exception("No data packet buff found for RTS " + str(self.node_id)  + " - " + str(self.status))
 
         rts = Packet(PacketType.RTS, self.node_id, self.data_packet_buff.receiver_address, DATA_MIN_SIZE // 4)
         rts.attach_crc()

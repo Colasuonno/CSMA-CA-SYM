@@ -1,16 +1,33 @@
 from enum import Enum
 from unittest import case
 
-N_NODES = 2
-SIMULATION_TICKS = 100000
-PROBABILITY_OF_SENDING_PACKET = 0.9
+N_NODES = 100
+SIMULATION_TICKS = 10000
+PROBABILITY_OF_SENDING_PACKET = 0.01
 SIFS = 2  # 2 ticks
 DIFS = 5 * SIFS + 5
 DATA_MIN_SIZE = 20
 DATA_MAX_SIZE = 100
 ACK_MAX_WAIT_TIME = DATA_MIN_SIZE
 
-CW_MIN = 3
+
+CW_MIN = 31
+
+# SPATIAL SETTINGS
+# This settings exists so nodes position are generated randomly, so
+# they could ear each other or not, in this case we can add some
+# "collisions" inductions, more is the space range, more likely is to not ear others nodes
+# of course we can talk only with specific nodes
+# TODO: Modify sending speed based on distance
+
+DISTANCE_WHICH_A_NODE_CAN_EAR_OTHER_NODE = 10
+
+MIN_X = 0
+MAX_X = 100
+
+MIN_Y = 0
+MAX_Y = 100
+
 
 
 class PacketStatus(Enum):
@@ -28,11 +45,14 @@ class PacketStatus(Enum):
 class ChannelStatType(Enum):
 
     TOTAL_GENERATED_PACKETS = 0
-    SENT_PACKETS = 1
-    COLLISIONS = 2
+    TOTAL_SENT_PACKETS = 1
+    TOTAL_LOSS_PACKETS = 2
+    TOTAL_DATA_PACKET_SENT = 6
     AVG_PACKET_LOSS_PERCENTAGE = 3
-    TOTAL_RETRANSMITTED_PACKET_AFTER_ACK_LOST = 5
-    TOTAL_NODES = 4
+    TOTAL_TIMEOUT_NODES = 4
+    TOTAL_NODES = 5
+    # NEAR NODES = NODES WITH DISTANCE <= DISTANCE_WHICH_A_NODE_CAN_EAR_OTHER_NODE
+    AVG_NEAR_NODES = 7
 
 class NodeStatType(Enum):
     CONTROL_PACKET_SENT = 1
@@ -47,14 +67,17 @@ class NodeStatType(Enum):
     PACKET_LOSS_PERCENTAGE = 5
     CW_ENTERS = 7
     CW_INCREASE = 8
+    TIMEOUT_RETRY = 12
 
 
 DEFAULT_CHANNEL_STATS = {
+    ChannelStatType.AVG_NEAR_NODES: 0,
+    ChannelStatType.TOTAL_DATA_PACKET_SENT: 0,
     ChannelStatType.TOTAL_GENERATED_PACKETS: 0,
-    ChannelStatType.SENT_PACKETS: 0,
-    ChannelStatType.COLLISIONS: 0,
+    ChannelStatType.TOTAL_SENT_PACKETS: 0,
+    ChannelStatType.TOTAL_LOSS_PACKETS: 0,
     ChannelStatType.AVG_PACKET_LOSS_PERCENTAGE: 0,
-    ChannelStatType.TOTAL_RETRANSMITTED_PACKET_AFTER_ACK_LOST: 0,
+    ChannelStatType.TOTAL_TIMEOUT_NODES: 0,
     ChannelStatType.TOTAL_NODES: N_NODES
 }
 
@@ -62,15 +85,16 @@ DEFAULT_NODE_STATS = {
     NodeStatType.CONTROL_PACKET_SENT: 0,
     NodeStatType.CONTROL_PACKET_LOSS: 0,
     NodeStatType.CONTROL_PACKET_GENERATED: 0,
-    NodeStatType.DATA_PACKET_GENERATED: 0,
-    NodeStatType.TOTAL_PACKET_GENERATED: 0,
     NodeStatType.DATA_PACKET_SENT: 0,
     NodeStatType.DATA_PACKET_LOSS: 0,
+    NodeStatType.DATA_PACKET_GENERATED: 0,
     NodeStatType.TOTAL_PACKET_SENT: 0,
     NodeStatType.TOTAL_PACKET_LOSS: 0,
+    NodeStatType.TOTAL_PACKET_GENERATED: 0,
     NodeStatType.PACKET_LOSS_PERCENTAGE: 0,
     NodeStatType.CW_ENTERS: 0,
-    NodeStatType.CW_INCREASE: 0
+    NodeStatType.CW_INCREASE: 0,
+    NodeStatType.TIMEOUT_RETRY: 0
 }
 
 class ChannelStatus(Enum):

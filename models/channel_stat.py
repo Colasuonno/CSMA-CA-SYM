@@ -13,12 +13,18 @@ class ChannelStat:
 
     def evaluate_stat(self, stat_type: ChannelStatType):
         match stat_type:
+            case ChannelStatType.AVG_NEAR_NODES:
+                return sum([len(self.channel.get_nodes_from_pos(node)) for node in self.channel.nodes]) / len(self.channel.nodes)
             case ChannelStatType.TOTAL_GENERATED_PACKETS:
-                return sum([node.stats.evaluate_stat(NodeStatType.GENERATED_PACKETS) for node in self.channel.nodes])
-            case ChannelStatType.TOTAL_RETRANSMITTED_PACKET_AFTER_ACK_LOST:
-                return sum([node.stats.evaluate_stat(NodeStatType.RETRANSMITTED_PACKET_AFTER_ACK_LOST) for node in self.channel.nodes])
-            case ChannelStatType.SENT_PACKETS:
-                return sum([node.stats.evaluate_stat(NodeStatType.SENT_PACKET) for node in self.channel.nodes])
+                return sum([node.stats.evaluate_stat(NodeStatType.TOTAL_PACKET_GENERATED) for node in self.channel.nodes])
+            case ChannelStatType.TOTAL_DATA_PACKET_SENT:
+                return sum([node.stats.evaluate_stat(NodeStatType.DATA_PACKET_SENT) for node in self.channel.nodes])
+            case ChannelStatType.TOTAL_SENT_PACKETS:
+                return sum([node.stats.evaluate_stat(NodeStatType.TOTAL_PACKET_SENT) for node in self.channel.nodes])
+            case ChannelStatType.TOTAL_LOSS_PACKETS:
+                return sum([node.stats.evaluate_stat(NodeStatType.TOTAL_PACKET_LOSS) for node in self.channel.nodes])
+            case ChannelStatType.TOTAL_TIMEOUT_NODES:
+                return sum([node.stats.evaluate_stat(NodeStatType.TIMEOUT_RETRY) for node in self.channel.nodes])
             case ChannelStatType.AVG_PACKET_LOSS_PERCENTAGE:
                 return sum([node.stats.evaluate_stat(NodeStatType.PACKET_LOSS_PERCENTAGE) for node in self.channel.nodes]) / (len(self.channel.nodes))
             case _:

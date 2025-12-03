@@ -3,7 +3,6 @@ import random
 from models.v2.node2 import Node2
 from models.v2.channel2 import Channel2
 from config_params import N_NODES, SIMULATION_TICKS, NodeStatus
-import utils.waiting_timer
 import logging
 
 _logger = logging.getLogger(__name__)
@@ -40,4 +39,4 @@ if __name__ == '__main__':
     for n in range(N_NODES):
         channel.nodes[n].stats.print_stats()
 
-    #channel.stats.print_stats()
+    channel.stats.print_stats()

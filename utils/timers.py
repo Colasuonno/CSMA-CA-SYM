@@ -12,7 +12,7 @@ class NodeTimer:
 
     def __init__(self, timer_type: NodeTimerType, ticks: int, packet: Packet | None = None):
         if timer_type == NodeTimerType.BACKOFF:
-            self.waiting_ticks = random.randint(0, ticks)
+            self.waiting_ticks = random.randint(1, ticks)
             self.cw_timer = self.waiting_ticks
         else:
             self.waiting_ticks = ticks
