@@ -11,7 +11,7 @@ DATA_MAX_SIZE = 100
 ACK_MAX_WAIT_TIME = DATA_MIN_SIZE
 
 
-CW_MIN = 31
+CW_MIN = 7
 
 # SPATIAL SETTINGS
 # This settings exists so nodes position are generated randomly, so

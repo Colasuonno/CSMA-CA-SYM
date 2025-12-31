@@ -2,6 +2,7 @@ import random
 
 from models.v2.node2 import Node2
 from models.v2.channel2 import Channel2
+from models.v2.node_rl import NodeQL
 from config_params import N_NODES, SIMULATION_TICKS, NodeStatus
 import logging
 
@@ -17,7 +18,7 @@ if __name__ == '__main__':
     channel = Channel2()
 
     for n in range(N_NODES):
-        channel.nodes.append(Node2(n, channel))
+        channel.nodes.append(NodeQL(n, channel))
 
     _logger.info("Init all nodes")
 
@@ -37,6 +38,13 @@ if __name__ == '__main__':
     _logger.info("Simulation ended")
 
     for n in range(N_NODES):
-        channel.nodes[n].stats.print_stats()
+        
+        node = channel.nodes[n]
+        
+        node.stats.print_stats()
+        #node.print_ql_stats()
+
+
+
 
     channel.stats.print_stats()
