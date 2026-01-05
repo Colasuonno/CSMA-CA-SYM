@@ -222,7 +222,9 @@ class Node2:
             case PacketType.CTS:
 
                 if self.status != NodeStatus.WAITING_CTS:
-                    raise Exception("Invalid status for CTS packet " + str(self.status) + " - " + str(self.node_id))
+                    _logger.error("Old packet.....")
+                    return
+                    #raise Exception("Invalid status for CTS packet " + str(self.status) + " - " + str(self.node_id))
                 else:
                     self.reset_timeout()
                     self.status = NodeStatus.SENDING_DATA
@@ -232,7 +234,9 @@ class Node2:
             case PacketType.DATA:
 
                 if self.status != NodeStatus.WAITING_DATA:
-                    raise Exception("Invalid status for DATA packet " + str(self.status))
+                    #raise Exception("Invalid status for DATA packet " + str(self.status))
+                    _logger.error("Old packet.....")
+                    return
                 else:
                     self.reset_timeout()
                     self.status = NodeStatus.SENDING_ACK
@@ -253,7 +257,7 @@ class Node2:
 
 
 
-        _logger.info("@ " + str(t) + " " + "Node " + str(self.node_id) + " Received packet " + str(packet))
+        #_logger.info("@ " + str(t) + " " + "Node " + str(self.node_id) + " Received packet " + str(packet))
 
 
 

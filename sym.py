@@ -1,6 +1,7 @@
 import random
 
 from models.v2.node2 import Node2
+from models.v2.karmedbandit_rl_node import RLKArmedBanditNode
 from models.v2.channel2 import Channel2
 from config_params import N_NODES, SIMULATION_TICKS, NodeStatus
 import logging
@@ -17,7 +18,7 @@ if __name__ == '__main__':
     channel = Channel2()
 
     for n in range(N_NODES):
-        channel.nodes.append(Node2(n, channel))
+        channel.nodes.append(RLKArmedBanditNode(0.1, n, channel))
 
     _logger.info("Init all nodes")
 

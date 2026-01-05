@@ -1,8 +1,8 @@
 from enum import Enum
 from unittest import case
 
-N_NODES = 100
-SIMULATION_TICKS = 1000000
+N_NODES = 1000
+SIMULATION_TICKS = 10000
 PROBABILITY_OF_SENDING_PACKET = 0.01
 SIFS = 2  # 2 ticks
 DIFS = 5 * SIFS + 5
