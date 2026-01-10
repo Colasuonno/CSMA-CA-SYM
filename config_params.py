@@ -1,9 +1,9 @@
 from enum import Enum
 from unittest import case
 
-N_NODES = 1000
-SIMULATION_TICKS = 10000
-PROBABILITY_OF_SENDING_PACKET = 0.01
+N_NODES = 100
+SIMULATION_TICKS = 5000000
+PROBABILITY_OF_SENDING_PACKET = 0.2
 SIFS = 2  # 2 ticks
 DIFS = 5 * SIFS + 5
 DATA_MIN_SIZE = 20
@@ -20,7 +20,7 @@ CW_MIN = 31
 # of course we can talk only with specific nodes
 # TODO: Modify sending speed based on distance
 
-DISTANCE_WHICH_A_NODE_CAN_EAR_OTHER_NODE = 10
+DISTANCE_WHICH_A_NODE_CAN_EAR_OTHER_NODE = 30
 
 MIN_X = 0
 MAX_X = 100

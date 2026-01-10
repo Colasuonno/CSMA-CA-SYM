@@ -66,14 +66,14 @@ class Channel2:
 
             match packet.packet_type:
                 case PacketType.DATA:
-                    sender.stats.append_stat(NodeStatType.DATA_PACKET_LOSS, 1)
+                    sender.stats.append_stat(NodeStatType.DATA_PACKET_LOSS, 1, t)
                 case _:
-                    sender.stats.append_stat(NodeStatType.CONTROL_PACKET_LOSS, 1)
+                    sender.stats.append_stat(NodeStatType.CONTROL_PACKET_LOSS, 1, t)
 
 
-            _logger.error("@" + str(t) + " Channel is busy packet " + str(packet) +" is lost")
+            _logger.debug("@" + str(t) + " Channel is busy packet " + str(packet) +" is lost")
         else:
-            _logger.info("Setting to busy @ " + str(t) + " Channel is sending packet " + str(packet))
+            _logger.debug("Setting to busy @ " + str(t) + " Channel is sending packet " + str(packet))
             self.sending_packet = packet
             self.status = ChannelStatus.BUSY
             self.sending_seconds = packet.data_size

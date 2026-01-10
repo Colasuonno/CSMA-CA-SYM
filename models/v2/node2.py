@@ -29,15 +29,18 @@ class Node2:
         # This is the packet buff generated before sending the RTS
         self.data_packet_buff: Packet | None = None
 
+    def print_policy(self, channel):
+        pass
+
     def send_packet_from_timer(self, t):
         self.timeout_seconds = self.timer.packet.timeout
         self.channel.send_packet(t, self.timer.packet)
 
         match self.timer.packet.packet_type:
             case PacketType.DATA:
-                self.stats.append_stat(NodeStatType.DATA_PACKET_GENERATED, 1)
+                self.stats.append_stat(NodeStatType.DATA_PACKET_GENERATED, 1, t)
             case _:
-                self.stats.append_stat(NodeStatType.CONTROL_PACKET_GENERATED, 1)
+                self.stats.append_stat(NodeStatType.CONTROL_PACKET_GENERATED, 1, t)
 
 
     def distance(self, node):
@@ -59,10 +62,10 @@ class Node2:
             self.timeout_seconds -= 1
 
         if self.timeout_seconds is not None and self.timeout_seconds == 0:
-            _logger.info("@ " + str(t) + " " + str(self.node_id) + " Timeout reached, we just re-try RTS entering cw")
-            self.stats.append_stat(NodeStatType.TIMEOUT_RETRY, 1)
+            _logger.debug("@ " + str(t) + " " + str(self.node_id) + " Timeout reached, we just re-try RTS entering cw")
+            self.stats.append_stat(NodeStatType.TIMEOUT_RETRY, 1, t)
             self.status = NodeStatus.TIMEOUT
-            self.enter_cw()
+            self.enter_cw(t)
             self.timeout_seconds = None
             return
 
@@ -100,7 +103,7 @@ class Node2:
                             # We just wait DIFS for RTS
                             # We enter in cw with a RTS packet
                             self.current_packet_buff = self.build_rts_packet()
-                            self.enter_cw()
+                            self.enter_cw(t)
                         case NodeStatus.SENDING_CTS:
                             self.status = NodeStatus.WAITING_DATA
                             self.send_packet_from_timer(t)
@@ -118,16 +121,16 @@ class Node2:
                             raise Exception("Invalid timer status " + str(self.status))
 
 
-    def enter_cw(self):
+    def enter_cw(self, t):
 
         cw_timer = CW_MIN
 
         if self.timer and self.timer.timer_type == NodeTimerType.BACKOFF:
             _logger.info("Resending perhaps, from backoff timer was: " + str(self.timer.cw_timer) +" and CW MIN IS "+ str(CW_MIN))
             cw_timer = self.timer.cw_timer * 2
-            self.stats.append_stat(NodeStatType.CW_INCREASE, 1)
+            self.stats.append_stat(NodeStatType.CW_INCREASE, 1, t)
         else:
-            self.stats.append_stat(NodeStatType.CW_ENTERS, 1)
+            self.stats.append_stat(NodeStatType.CW_ENTERS, 1, t)
 
         self.timer = NodeTimer(NodeTimerType.BACKOFF, cw_timer, self.current_packet_buff)
 
@@ -160,22 +163,23 @@ class Node2:
                     self.timer = NodeTimer(NodeTimerType.NORMAL_WAIT, DIFS)
 
             case NodeStatus.END_BACKOFF_TIMEOUT:
+
+                # Ok here there is something to explain
+                # If the node hasn't nearby packets (too far for example)
+                # the data packet buff is none, so we can't send any RTS
+                # TODO: Implement something to modify range idk???
+                # For now I just check either the buff is none
+                # and then put the node in idle
+                if not self.data_packet_buff:
+                    self.status = NodeStatus.IDLE
+                    self.reset_timer()
+                    self.reset_timeout()
+                    return
+
+
                 if self.channel_busy():
                     self.status = NodeStatus.WAITING_UNTIL_CHANNEL_IS_CLEAR
                 else:
-
-                    # Ok here there is something to explain
-                    # If the node hasn't nearby packets (too far for example)
-                    # the data packet buff is none, so we can't send any RTS
-                    # TODO: Implement something to modify range idk???
-                    # For now I just check either the buff is none
-                    # and then put the node in idle
-                    if not self.data_packet_buff:
-                        self.status = NodeStatus.IDLE
-                        self.reset_timer()
-                        self.reset_timeout()
-                        return
-
                     self.status = NodeStatus.SENDING_RTS
                     self.timer = NodeTimer(NodeTimerType.NORMAL_WAIT, DIFS)
 
@@ -192,7 +196,7 @@ class Node2:
     def should_skip_packet(self, packet):
         if self.node_id != packet.receiver_address:
             # Update nav timer
-            self.nav_seconds = packet.data_size
+            self.nav_seconds = packet.duration
             return True
         return False
 
@@ -200,20 +204,22 @@ class Node2:
         if self.should_skip_packet(packet):
             return
 
+        _logger.debug("@ " + str(t) + " " + "Node " + str(self.node_id) + " Received packet " + str(packet))
+
         # If we receive the packet means we actually "can" receive it
 
         sender = self.channel.nodes[packet.sender_address]
 
         match packet.packet_type:
             case PacketType.DATA:
-                sender.stats.append_stat(NodeStatType.DATA_PACKET_SENT, 1)
+                sender.stats.append_stat(NodeStatType.DATA_PACKET_SENT, 1, t)
             case _:
-                 sender.stats.append_stat(NodeStatType.CONTROL_PACKET_SENT, 1)
+                 sender.stats.append_stat(NodeStatType.CONTROL_PACKET_SENT, 1, t)
 
         match packet.packet_type:
             case PacketType.RTS:
                 if not self.status.can_start_new_connections():
-                    _logger.error("@ " + str(t) + " " + str(self.node_id) + " Received RTS while not idle, skipping packet with status " + str(self.status) + "")
+                    _logger.debug("@ " + str(t) + " " + str(self.node_id) + " Received RTS while not idle, skipping packet with status " + str(self.status) + "")
                 else:
                     self.status = NodeStatus.SENDING_CTS
                     self.current_packet_buff = self.build_cts_packet(packet)
@@ -222,9 +228,7 @@ class Node2:
             case PacketType.CTS:
 
                 if self.status != NodeStatus.WAITING_CTS:
-                    _logger.error("Old packet.....")
-                    return
-                    #raise Exception("Invalid status for CTS packet " + str(self.status) + " - " + str(self.node_id))
+                    raise Exception("Invalid status for CTS packet " + str(self.status) + " - " + str(self.node_id))
                 else:
                     self.reset_timeout()
                     self.status = NodeStatus.SENDING_DATA
@@ -234,9 +238,7 @@ class Node2:
             case PacketType.DATA:
 
                 if self.status != NodeStatus.WAITING_DATA:
-                    #raise Exception("Invalid status for DATA packet " + str(self.status))
-                    _logger.error("Old packet.....")
-                    return
+                    raise Exception("Invalid status for DATA packet " + str(self.status))
                 else:
                     self.reset_timeout()
                     self.status = NodeStatus.SENDING_ACK
@@ -253,11 +255,11 @@ class Node2:
                     self.status = NodeStatus.IDLE
                     self.current_packet_buff = None
                     self.data_packet_buff = None
-                    _logger.info("Verified ACK for packet " + str(packet) + "")
+                    _logger.debug("Verified ACK for packet " + str(packet) + "")
 
 
 
-        #_logger.info("@ " + str(t) + " " + "Node " + str(self.node_id) + " Received packet " + str(packet))
+
 
 
 

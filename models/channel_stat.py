@@ -11,6 +11,8 @@ class ChannelStat:
         self.channel = channel
         self.stats = DEFAULT_CHANNEL_STATS.copy()
 
+        self.window_size = 10_000
+
     def evaluate_stat(self, stat_type: ChannelStatType):
         match stat_type:
             case ChannelStatType.AVG_NEAR_NODES:
@@ -30,6 +32,9 @@ class ChannelStat:
             case _:
                 return self.stats[stat_type]
 
+    def get_avg_recent_packet_loss(self) -> float:
+        losses = [node.stats.get_recent_packet_loss_percentage() for node in self.channel.nodes]
+        return sum(losses) / len(losses) if losses else 0.0
 
     def append_stat(self, stat_type: ChannelStatType, value):
         self.stats[stat_type] += value
@@ -38,4 +43,5 @@ class ChannelStat:
         _logger.info(f"=== Channel Statistics ===")
         for stat_type, value in self.stats.items():
             _logger.info(f"{stat_type.name}: {self.evaluate_stat(stat_type):.2f}")
+        _logger.info(f"  AVG_RECENT_LOSS_%: {self.get_avg_recent_packet_loss() * 100:.2f}%")
         _logger.info("=" * 40)

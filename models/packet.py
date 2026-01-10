@@ -33,9 +33,26 @@ class Packet:
         self.receiver_address = receiver_address
         self.data_size = data_size
         # RTS + CTS + DATA + ACK + SIFS (Duration Estimation in ticks)
-        self.duration = 1 + 1 + data_size + 1 + SIFS
         self.timeout = DATA_PACKET_TIMEOUT if self.packet_type in [PacketType.DATA, PacketType.CTS] else CONTROL_PACKET_TIMEOUT
         self.crc = None # Sender calculation
+
+
+        match self.packet_type:
+            case PacketType.RTS:
+                # Entire duration: DIFS + RTS + SIFS + CTS + SIFS + DATA + SIFS + ACK
+                self.duration = DIFS + DATA_MIN_SIZE + SIFS + DATA_MIN_SIZE + SIFS + DATA_MAX_SIZE + SIFS + DATA_MIN_SIZE
+            case PacketType.CTS:
+                #  duration: SIFS + CTS + SIFS + DATA + SIFS + ACK
+                self.duration =  SIFS + DATA_MIN_SIZE + SIFS + DATA_MAX_SIZE + SIFS + DATA_MIN_SIZE
+            case PacketType.DATA:
+                #  duration: SIFS + DATA + SIFS + ACK
+                self.duration = SIFS + DATA_MAX_SIZE + SIFS + DATA_MIN_SIZE
+            case PacketType.ACK:
+                #  duration: SIFS + ACK
+                self.duration =  SIFS + DATA_MIN_SIZE
+
+
+
 
     def to_bytes(self) -> bytes:
         data = bytearray()

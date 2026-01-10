@@ -1,0 +1,17 @@
+Baseline CSMA:
+
+INFO:models.channel_stat:=== Channel Statistics ===
+INFO:models.channel_stat:AVG_NEAR_NODES: 1.48
+INFO:models.channel_stat:TOTAL_DATA_PACKET_SENT: 9110.00
+INFO:models.channel_stat:TOTAL_GENERATED_PACKETS: 89401.00
+INFO:models.channel_stat:TOTAL_SENT_PACKETS: 61027.00
+INFO:models.channel_stat:TOTAL_LOSS_PACKETS: 16755.00
+INFO:models.channel_stat:AVG_PACKET_LOSS_PERCENTAGE: 0.16
+INFO:models.channel_stat:TOTAL_TIMEOUT_NODES: 51871.00
+INFO:models.channel_stat:TOTAL_NODES: 50.00
+INFO:models.channel_stat:========================================
+
+
+KARMED CSMA:
+
+epsilon = 0.03
