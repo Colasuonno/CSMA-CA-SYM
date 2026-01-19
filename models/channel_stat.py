@@ -1,4 +1,4 @@
-from config_params import NodeStatType, DEFAULT_NODE_STATS, ChannelStatType, DEFAULT_CHANNEL_STATS
+from config_params import NodeStatType, DEFAULT_NODE_STATS, ChannelStatType, DEFAULT_CHANNEL_STATS, SIMULATION_TICKS
 import logging
 
 
@@ -29,6 +29,8 @@ class ChannelStat:
                 return sum([node.stats.evaluate_stat(NodeStatType.TIMEOUT_RETRY) for node in self.channel.nodes])
             case ChannelStatType.AVG_PACKET_LOSS_PERCENTAGE:
                 return sum([node.stats.evaluate_stat(NodeStatType.PACKET_LOSS_PERCENTAGE) for node in self.channel.nodes]) / (len(self.channel.nodes))
+            case ChannelStatType.TOTAL_THROUGHPUT:
+                return sum([node.stats.evaluate_stat(NodeStatType.TOTAL_SUCCESS_SENT_BITS) for node in self.channel.nodes]) / SIMULATION_TICKS
             case _:
                 return self.stats[stat_type]
 

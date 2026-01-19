@@ -11,10 +11,11 @@ class NodeTimerType(Enum):
 
 class NodeTimer:
 
-    def __init__(self, timer_type: NodeTimerType, ticks: int, packet: Packet | None = None, rl_action = None, rl_event = None):
+    def __init__(self, timer_type: NodeTimerType, ticks: int, packet: Packet | None = None, rl_action = None, rl_event = None, rl_previous_state = None):
 
         self.rl_action = rl_action
         self.rl_event = rl_event
+        self.rl_previous_state = rl_previous_state
 
         if timer_type == NodeTimerType.BACKOFF:
             self.waiting_ticks = random.randint(1, ticks)
