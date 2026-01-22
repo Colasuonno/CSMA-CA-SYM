@@ -1,15 +1,21 @@
 from enum import Enum
 from unittest import case
 
-N_NODES = 100
-SIMULATION_TICKS = 1000000
-PROBABILITY_OF_SENDING_PACKET = 0.01
+N_NODES = 500
+#SIMULATION_TICKS = 100000000
+SIMULATION_TICKS = 10000000
+PROBABILITY_OF_SENDING_PACKET = 0.5
+
+PROBABILITY_OF_SENDING_PACKET_AGGRESSIVE = lambda node_id: 0.1 if node_id < 50 else 0.4
+
 SIFS = 2  # 2 ticks
 DIFS = 5 * SIFS + 5
 DATA_MIN_SIZE = 20
 DATA_MAX_SIZE = 100
 ACK_MAX_WAIT_TIME = DATA_MIN_SIZE
 
+
+CLUSTER_NUM = 3
 
 CW_MIN = 31
 
@@ -20,7 +26,7 @@ CW_MIN = 31
 # of course we can talk only with specific nodes
 # TODO: Modify sending speed based on distance
 
-DISTANCE_WHICH_A_NODE_CAN_EAR_OTHER_NODE = 10
+DISTANCE_WHICH_A_NODE_CAN_EAR_OTHER_NODE = 30
 
 MIN_X = 0
 MAX_X = 100
@@ -53,6 +59,7 @@ class ChannelStatType(Enum):
     TOTAL_NODES = 5
     # NEAR NODES = NODES WITH DISTANCE <= DISTANCE_WHICH_A_NODE_CAN_EAR_OTHER_NODE
     AVG_NEAR_NODES = 7
+    TOTAL_THROUGHPUT = 8
 
 class NodeStatType(Enum):
     CONTROL_PACKET_SENT = 1
@@ -68,6 +75,9 @@ class NodeStatType(Enum):
     CW_ENTERS = 7
     CW_INCREASE = 8
     TIMEOUT_RETRY = 12
+    TOTAL_SUCCESS_SENT_BITS = 14
+    SUCCESS_BITS_OVER_SIM_TICKS = 13
+
 
 
 DEFAULT_CHANNEL_STATS = {
@@ -78,6 +88,7 @@ DEFAULT_CHANNEL_STATS = {
     ChannelStatType.TOTAL_LOSS_PACKETS: 0,
     ChannelStatType.AVG_PACKET_LOSS_PERCENTAGE: 0,
     ChannelStatType.TOTAL_TIMEOUT_NODES: 0,
+    ChannelStatType.TOTAL_THROUGHPUT: 0,
     ChannelStatType.TOTAL_NODES: N_NODES
 }
 
@@ -94,7 +105,9 @@ DEFAULT_NODE_STATS = {
     NodeStatType.PACKET_LOSS_PERCENTAGE: 0,
     NodeStatType.CW_ENTERS: 0,
     NodeStatType.CW_INCREASE: 0,
-    NodeStatType.TIMEOUT_RETRY: 0
+    NodeStatType.TIMEOUT_RETRY: 0,
+    NodeStatType.TOTAL_SUCCESS_SENT_BITS: 0,
+    NodeStatType.SUCCESS_BITS_OVER_SIM_TICKS: 0,
 }
 
 class ChannelStatus(Enum):

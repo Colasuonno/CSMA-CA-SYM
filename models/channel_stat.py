@@ -1,4 +1,4 @@
-from config_params import NodeStatType, DEFAULT_NODE_STATS, ChannelStatType, DEFAULT_CHANNEL_STATS
+from config_params import NodeStatType, DEFAULT_NODE_STATS, ChannelStatType, DEFAULT_CHANNEL_STATS, SIMULATION_TICKS
 import logging
 
 
@@ -10,6 +10,8 @@ class ChannelStat:
     def __init__(self, channel):
         self.channel = channel
         self.stats = DEFAULT_CHANNEL_STATS.copy()
+
+        self.window_size = 10_000
 
     def evaluate_stat(self, stat_type: ChannelStatType):
         match stat_type:
@@ -27,9 +29,14 @@ class ChannelStat:
                 return sum([node.stats.evaluate_stat(NodeStatType.TIMEOUT_RETRY) for node in self.channel.nodes])
             case ChannelStatType.AVG_PACKET_LOSS_PERCENTAGE:
                 return sum([node.stats.evaluate_stat(NodeStatType.PACKET_LOSS_PERCENTAGE) for node in self.channel.nodes]) / (len(self.channel.nodes))
+            case ChannelStatType.TOTAL_THROUGHPUT:
+                return sum([node.stats.evaluate_stat(NodeStatType.TOTAL_SUCCESS_SENT_BITS) for node in self.channel.nodes]) / SIMULATION_TICKS
             case _:
                 return self.stats[stat_type]
 
+    def get_avg_recent_packet_loss(self) -> float:
+        losses = [node.stats.get_recent_packet_loss_percentage() for node in self.channel.nodes]
+        return sum(losses) / len(losses) if losses else 0.0
 
     def append_stat(self, stat_type: ChannelStatType, value):
         self.stats[stat_type] += value
@@ -38,4 +45,5 @@ class ChannelStat:
         _logger.info(f"=== Channel Statistics ===")
         for stat_type, value in self.stats.items():
             _logger.info(f"{stat_type.name}: {self.evaluate_stat(stat_type):.2f}")
+        _logger.info(f"  AVG_RECENT_LOSS_%: {self.get_avg_recent_packet_loss() * 100:.2f}%")
         _logger.info("=" * 40)
