@@ -1,1 +1,0 @@
-RTS + CTS for hidden/exposed terminal
